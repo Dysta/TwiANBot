@@ -1,29 +1,39 @@
 from __future__ import annotations
 
-import os
+import asyncio
+import random
 
-import tweepy
 from loguru import logger
 
+from . import TwiBot
+from .tasks import scrutins
+from .utils import task
 
-def main():
-    bot = tweepy.Client(
-        consumer_key=os.getenv("API_KEY"),
-        consumer_secret=os.getenv("API_SECRET"),
-        access_token=os.getenv("ACCESS_TOKEN"),
-        access_token_secret=os.getenv("ACCESS_SECRET"),
-    )
 
-    logger.debug(os.getenv("API_KEY"))
-    logger.debug(os.getenv("API_SECRET"))
-    logger.debug(os.getenv("ACCESS_TOKEN"))
-    logger.debug(os.getenv("ACCESS_SECRET"))
+@task.loop(seconds=1, count=3)
+async def simple_task() -> None:
+    n = random.randint(1, 10)
+    logger.debug(f"Hello, world from task {n}!")
 
-    bot.create_tweet(text="Hello, world!")
+
+async def main():
+    bot = TwiBot()
+
+    bot.add_task(simple_task)
+    bot.add_task(scrutins.task, bot)
+
+    # bot.create_tweet(text="Hello, world!")
+
+    # ? run the bot forever
+    event = asyncio.Event()
+    await event.wait()
 
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
 
     load_dotenv()
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot shutdown")
