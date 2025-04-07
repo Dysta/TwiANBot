@@ -5,24 +5,26 @@ import random
 
 from loguru import logger
 
-from . import TwiBot
+from .components import get_client_instance, task
 from .tasks import scrutins
-from .utils import task
+
+client = get_client_instance()
 
 
-@task.loop(seconds=1, count=3)
+@task.loop(seconds=1, count=1)
 async def simple_task() -> None:
     n = random.randint(1, 10)
     logger.debug(f"Hello, world from task {n}!")
 
 
+@client.listen()
+async def on_scrutins_updated() -> None:
+    logger.debug("Scrutins updated func called from main")
+
+
 async def main():
-    bot = TwiBot()
-
-    bot.add_task(simple_task)
-    bot.add_task(scrutins.task, bot)
-
-    # bot.create_tweet(text="Hello, world!")
+    client.add_task(simple_task)
+    client.add_task(scrutins.task)
 
     # ? run the bot forever
     event = asyncio.Event()
