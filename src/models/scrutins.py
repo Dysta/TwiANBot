@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(eq=False)
 class Scrutin:
     id: int
     name: str
@@ -14,3 +14,5 @@ class Scrutin:
     vote_for: int
     vote_against: int
     vote_abstention: int
+
+    posted: bool = False

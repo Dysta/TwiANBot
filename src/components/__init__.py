@@ -1,2 +1,2 @@
-from .client import Client, get_client_instance
+from .client import Client
 from .task import Task
