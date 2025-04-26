@@ -30,6 +30,16 @@ def instance():
     return _client
 
 
+def anon_key(key: str) -> str:
+    """
+    Anonymize a key by replacing it with asterisks.
+
+    :param key: The key to be anonymized.
+    :return: The anonymized key.
+    """
+    return key[:4] + "*" * 12 + key[-4:]
+
+
 @dataclass(init=False, order=False, eq=False, unsafe_hash=False)
 class Client:
     tasks: List[Task]
@@ -62,6 +72,11 @@ class Client:
                 "Twitter API credentials are not set. Please set the environment variables "
                 "API_KEY, API_SECRET, ACCESS_TOKEN, and ACCESS_SECRET."
             )
+
+        logger.debug(f"API_KEY: {anon_key(api_key)}")
+        logger.debug(f"API_SECRET: {anon_key(api_secret)}")
+        logger.debug(f"ACCESS_TOKEN: {anon_key(access_token)}")
+        logger.debug(f"ACCESS_SECRET: {anon_key(access_secret)}")
 
         self.tw_client = tweepy.Client(
             consumer_key=api_key,
