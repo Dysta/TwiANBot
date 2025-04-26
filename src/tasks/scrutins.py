@@ -135,7 +135,7 @@ def short_tweet(scrutin: Scrutin) -> str:
 
 def tweet_reply(scrutin: Scrutin) -> str:
     rep = f"❔ Plus d'info sur le scrutin ici : {AN_BASE_URL + scrutin.url}"
-    if scrutin.text_url:
+    if scrutin.text_url != "":
         rep += f"\nTexte de loi ici : {AN_BASE_URL + scrutin.text_url}\n"
 
     return rep
