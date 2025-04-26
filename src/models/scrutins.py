@@ -16,3 +16,4 @@ class Scrutin:
     vote_abstention: int
 
     posted: bool = False
+    media_id: int = 0

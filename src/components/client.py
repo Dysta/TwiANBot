@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
+import aiofiles
 import tweepy
 from loguru import logger
 
@@ -45,38 +46,60 @@ class Client:
         API_KEY, API_SECRET, ACCESS_TOKEN, and ACCESS_SECRET. If any of these variables
         are not set, the client will not be able to perform any actions.
 
-        The client is also initialized with an empty list of tasks, an empty dictionary
+        The client is also initialized with an empty dictionary
         of listeners, and an empty dictionary of data.
 
-        Its recommended to not instanciate yourself a client and use the get_client_instance()
+        Its recommended to not instanciate yourself a client and use the instance()
         function instead to be able to reuse the same client and attach listeners.
         """
+        api_key = os.getenv("API_KEY")
+        api_secret = os.getenv("API_SECRET")
+        access_token = os.getenv("ACCESS_TOKEN")
+        access_secret = os.getenv("ACCESS_SECRET")
+
+        if not api_key or not api_secret or not access_token or not access_secret:
+            raise ValueError(
+                "Twitter API credentials are not set. Please set the environment variables "
+                "API_KEY, API_SECRET, ACCESS_TOKEN, and ACCESS_SECRET."
+            )
+
         self.tw_client = tweepy.Client(
-            consumer_key=os.getenv("API_KEY"),
-            consumer_secret=os.getenv("API_SECRET"),
-            access_token=os.getenv("ACCESS_TOKEN"),
-            access_token_secret=os.getenv("ACCESS_SECRET"),
+            consumer_key=api_key,
+            consumer_secret=api_secret,
+            access_token=access_token,
+            access_token_secret=access_secret,
             wait_on_rate_limit=True,
         )
         self.tw_api_V1 = tweepy.API(
             tweepy.OAuth1UserHandler(
-                consumer_key=os.getenv("API_KEY"),
-                consumer_secret=os.getenv("API_SECRET"),
-                access_token=os.getenv("ACCESS_TOKEN"),
-                access_token_secret=os.getenv("ACCESS_TOKEN_SECRET"),
-            ),
-            retry_count=3,
-            retry_delay=3,
+                consumer_key=api_key,
+                consumer_secret=api_secret,
+                access_token=access_token,
+                access_token_secret=access_secret,
+            )
         )
         self.listeners = {}
         self.data = {}
 
-        self._load_posted_scrutins()
+        self._load_data()
 
-    def _load_posted_scrutins(self) -> None:
+    def _load_data(self) -> None:
+        # ? posted scrutin is a json formated like
+        # ? { "<scrutin_id>": "<media_id>", ???? }
+        with open("data/linked_media.json", "r") as f:
+            data = json.load(f)
+            self.add_data("linked_media", data)
+
         with open("data/posted_scrutins.json", "r") as f:
             data = json.load(f)
             self.add_data("posted_scrutins", data["id"])
+
+    async def save_data(self) -> None:
+        async with aiofiles.open("data/posted_scrutins.json", "w") as f:
+            await f.write(json.dumps({"id": self.get_data("posted_scrutins")}))
+
+        async with aiofiles.open("data/linked_media.json", "w") as f:
+            await f.write(json.dumps(self.get_data("linked_media")))
 
     def add_data(self, key: Any, value: Any) -> None:
         """
