@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 import os
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
@@ -13,7 +14,7 @@ from .task import Task
 _client = None
 
 
-def get_client_instance():
+def instance():
     """
     Retrieve a singleton instance of the Client.
 
@@ -33,6 +34,7 @@ class Client:
     tasks: List[Task]
     listeners: Dict[str, List[Callable[..., Any]]]
     tw_client: tweepy.Client
+    tw_api_V1: tweepy.API
     data: Dict[Any, Any]
 
     def __init__(self) -> None:
@@ -56,35 +58,53 @@ class Client:
             access_token_secret=os.getenv("ACCESS_SECRET"),
             wait_on_rate_limit=True,
         )
-        self.tasks = []
+        self.tw_api_V1 = tweepy.API(
+            tweepy.OAuth1UserHandler(
+                consumer_key=os.getenv("API_KEY"),
+                consumer_secret=os.getenv("API_SECRET"),
+                access_token=os.getenv("ACCESS_TOKEN"),
+                access_token_secret=os.getenv("ACCESS_TOKEN_SECRET"),
+            ),
+            retry_count=3,
+            retry_delay=3,
+        )
         self.listeners = {}
         self.data = {}
 
-    def add_task(self, task: Task, *args, **kwargs) -> None:
+        self._load_posted_scrutins()
+
+    def _load_posted_scrutins(self) -> None:
+        with open("data/posted_scrutins.json", "r") as f:
+            data = json.load(f)
+            self.add_data("posted_scrutins", data["id"])
+
+    def add_data(self, key: Any, value: Any) -> None:
         """
-        Add a task to the list of tasks and start it.
+        Set a key-value pair in the client's data dictionary. If key already exists, it will be overwritten.
 
-        :param task: The task to be added and started.
-        :param args: Arguments to be passed to the task when it is started.
-        :param kwargs: Keyword arguments to be passed to the task when it is started.
-        """
-        self.tasks.append(task)
-        task.start(*args, **kwargs)
-
-    def stop(self) -> None:
-        """
-        Stop the bot.
-
-        This method will stop all the tasks that are currently running, and prevent any new tasks from being added.
-        It is recommended to call this method when the bot is shutting down, to prevent any tasks from attempting to
-        run after the bot has been stopped.
-
+        :param key: The key to be set.
+        :param value: The value to be set.
         :return: None
         """
-        for task in self.tasks:
-            task.stop()
+        self.data[key] = value
 
-        self.tasks = []
+    def remove_data(self, key: Any) -> None:
+        """
+        Remove a key from the client's data dictionary.
+
+        :param key: The key to be removed.
+        :return: None
+        """
+        self.data.pop(key, None)
+
+    def get_data(self, key: Any) -> Optional[Any]:
+        """
+        Get the value associated with a key from the client's data dictionary. If the key is not found, return None.
+
+        :param key: The key to retrieve the value for.
+        :return: The value associated with the key, or None if the key is not found.
+        """
+        return self.data.get(key, None)
 
     def add_listener(
         self,
