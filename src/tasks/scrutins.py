@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -87,7 +88,7 @@ async def upload_scrutin_media(client: client.Client, scrutin: Scrutin) -> None:
         client.dispatch("scrutins_updated")
 
 
-@task.loop(hours=1)
+@task.loop(seconds=15)
 async def post_scrutins_task(client: client.Client) -> None:
     logger.debug("Running post scrutins loop")
 
@@ -110,6 +111,7 @@ async def post_scrutins_task(client: client.Client) -> None:
         text=txt, media_ids=[
             scrutin_to_post.media_id] if scrutin_to_post.media_id else None
     )
+    await asyncio.sleep(1)
     client.tw_client.create_tweet(
         text=txt2, in_reply_to_tweet_id=tweet.data["id"])
 
@@ -136,6 +138,6 @@ def short_tweet(scrutin: Scrutin) -> str:
 def tweet_reply(scrutin: Scrutin) -> str:
     rep = f"❔ Plus d'info sur le scrutin ici : {AN_BASE_URL + scrutin.url}"
     if scrutin.text_url != "":
-        rep += f"\nTexte de loi ici : {AN_BASE_URL + scrutin.text_url}\n"
+        rep += f"\n📜 Texte de loi ici : {AN_BASE_URL + scrutin.text_url}\n"
 
     return rep
