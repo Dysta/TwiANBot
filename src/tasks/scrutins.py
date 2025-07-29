@@ -13,8 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 from src.components import client, req, task
 from src.models import Scrutin, ScrutinAnalyse
 
-CLEAN_TITLE_PATTERN = re.compile(
-    r"Scrutin public n.?°\d+\s+sur\s+(l[’']|le|la)\s*", re.IGNORECASE)
+CLEAN_TITLE_PATTERN = re.compile(r"Scrutin public n.?°\d+\s+sur\s+(l[’']|le|la)\s*", re.IGNORECASE)
 
 CLEAN_PARENTHESIS = re.compile(r"\s*\([^)]*\)", re.IGNORECASE)
 
@@ -49,9 +48,7 @@ async def get_scrutins_task(client: client.Client) -> None:
     if not scrutins:
         logger.debug("No scrutins to post today, taking the last 50 scrutins")
 
-        scrutins = [
-            Scrutin(**scrut) for scrut in scrutins_json["scrutins"][:50]
-        ]
+        scrutins = [Scrutin(**scrut) for scrut in scrutins_json["scrutins"][:50]]
 
     linked_media = client.get_data("linked_media")
     posted_scrutins = client.get_data("posted_scrutins")
@@ -73,16 +70,14 @@ async def create_post(client: client.Client) -> None:
 
     assert client.get_data("scrutins"), "No scrutins to post"
 
-    ready_to_post = [scrutin for scrutin in client.get_data(
-        "scrutins") if not scrutin.posted]
+    ready_to_post = [scrutin for scrutin in client.get_data("scrutins") if not scrutin.posted]
 
     scrutin_to_post = ready_to_post.pop()
 
     scrutin_analyse = await get_scrutin_details(scrutin_to_post)
 
     tweet_image = generate_vote_image(scrutin_to_post, scrutin_analyse)
-    img = client.tw_api_V1.media_upload(
-        filename=tweet_image.name, file=tweet_image)
+    img = client.tw_api_V1.media_upload(filename=tweet_image.name, file=tweet_image)
     scrutin_to_post.media_id = img.media_id
 
     txt = short_tweet(scrutin_to_post)
@@ -90,10 +85,7 @@ async def create_post(client: client.Client) -> None:
 
     assert len(txt) <= 280, f"Tweet too long for scrutin {scrutin_to_post.id}"
 
-    client.tw_client.create_tweet(
-        media_ids=[
-            scrutin_to_post.media_id] if scrutin_to_post.media_id else None
-    )
+    client.tw_client.create_tweet(media_ids=[scrutin_to_post.media_id] if scrutin_to_post.media_id else None)
 
     scrutin_to_post.posted = True
     client.get_data("posted_scrutins").append(scrutin_to_post.id)
@@ -143,25 +135,26 @@ def generate_vote_image(scrutin: Scrutin, scrutin_analyse: ScrutinAnalyse) -> By
     cleaned_name = clean_scrutin_name(scrutin.name)
     splited_name = wrap(cleaned_name, width=30)
     for i, line in enumerate(splited_name):
-        draw.text((410, 15 + i * 42), line,
-                  font=FONT_TITLE, fill="#233f6b")
+        draw.text((410, 15 + i * 42), line, font=FONT_TITLE, fill="#233f6b")
 
     date = datetime.strptime(scrutin.date, "%Y-%m-%d")
-    boxed_text(draw,
-               f"{date:%d/%m/%Y}",
-               (10, 15),
-               FONT_TEXT,
-               "#fcfcfc",
-               "#233f6b",
-               )
+    boxed_text(
+        draw,
+        f"{date:%d/%m/%Y}",
+        (10, 15),
+        FONT_TEXT,
+        "#fcfcfc",
+        "#233f6b",
+    )
 
-    boxed_text(draw,
-               f"{scrutin.id}",
-               (10, 140),
-               FONT_TEXT_SMALLER,
-               "#fcfcfc",
-               "#233f6b",
-               )
+    boxed_text(
+        draw,
+        f"{scrutin.id}",
+        (10, 140),
+        FONT_TEXT_SMALLER,
+        "#fcfcfc",
+        "#233f6b",
+    )
 
     if scrutin_analyse.visualizer:
         vizualizer = BytesIO(base64.b64decode(scrutin_analyse.visualizer))
@@ -181,37 +174,51 @@ def generate_vote_image(scrutin: Scrutin, scrutin_analyse: ScrutinAnalyse) -> By
 
         bg.paste(hemi_img, (width - 675, height - 400))
 
+    reading = extract_parenthesis(scrutin.name)
     boxed_text(
-        draw, "Détails du scrutin :", (10, 260), FONT_TITLE, "#fcfcfc", "#2c2d32")
+        draw,
+        reading,
+        (500, 850),
+        FONT_TITLE,
+        "#fcfcfc",
+        "#2c2d32",
+    )
+
+    boxed_text(draw, "Détails du scrutin :", (10, 260), FONT_TITLE, "#fcfcfc", "#2c2d32")
 
     if scrutin.adopted:
-        boxed_text(draw, f"{scrutin.vote_for}", (30, 335),
-                   FONT_NUMBERS,  "#fcfcfc", "#5890bd")
+        boxed_text(draw, f"{scrutin.vote_for}", (30, 335), FONT_NUMBERS, "#fcfcfc", "#5890bd")
     else:
-        draw.text((30, 335), f"{scrutin.vote_for}",
-                  font=FONT_NUMBERS, fill="#5890bd")
+        draw.text((30, 335), f"{scrutin.vote_for}", font=FONT_NUMBERS, fill="#5890bd")
 
     if not scrutin.adopted:
-        boxed_text(draw, f"{scrutin.vote_against}", (200, 335),
-                   FONT_NUMBERS, "#fcfcfc", "#ea707d")
+        boxed_text(draw, f"{scrutin.vote_against}", (200, 335), FONT_NUMBERS, "#fcfcfc", "#ea707d")
     else:
-        draw.text((200, 335), f"{scrutin.vote_against}",
-                  font=FONT_NUMBERS, fill="#ea707d")
+        draw.text((200, 335), f"{scrutin.vote_against}", font=FONT_NUMBERS, fill="#ea707d")
 
-    draw.text((390, 335), f"{scrutin.vote_abstention}",
-              font=FONT_NUMBERS, fill="#696969")
+    draw.text((390, 335), f"{scrutin.vote_abstention}", font=FONT_NUMBERS, fill="#696969")
 
-    draw.line([(10, 410), (450, 410)],
-              fill="#2c2d32", width=3)
+    draw.line([(10, 410), (450, 410)], fill="#2c2d32", width=3)
 
     draw.text(
-        (200, 420), f"{scrutin.vote_abstention + scrutin.vote_against + scrutin.vote_for}", font=FONT_NUMBERS, fill="#2c2d32")
+        (200, 420),
+        f"{scrutin.vote_abstention + scrutin.vote_against + scrutin.vote_for}",
+        font=FONT_NUMBERS,
+        fill="#2c2d32",
+    )
 
     buffer = BytesIO()
     buffer.name = f"scrutin_{scrutin.id}.jpg"
     bg.save(buffer, format="JPEG")
     buffer.seek(0)
     return buffer
+
+
+def extract_parenthesis(text: str) -> str:
+    rmatch = re.search(CLEAN_PARENTHESIS, text)
+    if rmatch:
+        return rmatch.group(0).strip()
+    return ""
 
 
 def clean_scrutin_name(name: str) -> str:
@@ -236,7 +243,15 @@ def clean_scrutin_name(name: str) -> str:
     return cleaned_name
 
 
-def boxed_text(draw: ImageDraw.ImageDraw, text: str, pos: tuple[int, int], font: ImageFont.FreeTypeFont, font_color: str, bg_color: str, padding: int = 10) -> None:
+def boxed_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    pos: tuple[int, int],
+    font: ImageFont.FreeTypeFont,
+    font_color: str,
+    bg_color: str,
+    padding: int = 10,
+) -> None:
     """
     Draw a text with a background box.
 
@@ -252,9 +267,5 @@ def boxed_text(draw: ImageDraw.ImageDraw, text: str, pos: tuple[int, int], font:
 
     x, y = pos
 
-    draw.rectangle(
-        [x - padding, y, x + text_width + padding,
-            y + text_height + (padding*2)],
-        fill=bg_color
-    )
+    draw.rectangle([x - padding, y, x + text_width + padding, y + text_height + (padding * 2)], fill=bg_color)
     draw.text(pos, text, font=font, fill=font_color)
