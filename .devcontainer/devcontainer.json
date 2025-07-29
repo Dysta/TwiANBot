@@ -24,8 +24,7 @@
 				"njpwerner.autodocstring",
 				"ms-python.black-formatter",
 				"ms-python.isort",
-				"donjayamanne.python-extension-pack",
-				"Codeium.codeium"
+				"donjayamanne.python-extension-pack"
 			]
             }
         }
