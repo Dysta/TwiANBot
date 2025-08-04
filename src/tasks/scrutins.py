@@ -13,7 +13,8 @@ from PIL import Image, ImageDraw, ImageFont
 from src.components import client, req, task
 from src.models import Scrutin, ScrutinAnalyse
 
-CLEAN_TITLE_PATTERN = re.compile(r"Scrutin public n.?°\d+\s+sur\s+(l[’']|le|la)\s*", re.IGNORECASE)
+CLEAN_TITLE_PATTERN = re.compile(
+    r"Scrutin public n.?°\d+\s+sur\s+(l[’']|le|la)\s*", re.IGNORECASE)
 
 CLEAN_PARENTHESIS = re.compile(r"\s*\([^)]*\)", re.IGNORECASE)
 
@@ -48,7 +49,8 @@ async def get_scrutins_task(client: client.Client) -> None:
     if not scrutins:
         logger.debug("No scrutins to post today, taking the last 50 scrutins")
 
-        scrutins = [Scrutin(**scrut) for scrut in scrutins_json["scrutins"][:50]]
+        scrutins = [Scrutin(**scrut)
+                    for scrut in scrutins_json["scrutins"][:50]]
 
     linked_media = client.get_data("linked_media")
     posted_scrutins = client.get_data("posted_scrutins")
@@ -64,20 +66,22 @@ async def get_scrutins_task(client: client.Client) -> None:
     client.dispatch("scrutins_updated")
 
 
-@task.loop(seconds=3)
+@task.loop(seconds=3, count=5)
 async def create_post(client: client.Client) -> None:
     logger.debug("Running post scrutins loop")
 
     assert client.get_data("scrutins"), "No scrutins to post"
 
-    ready_to_post = [scrutin for scrutin in client.get_data("scrutins") if not scrutin.posted]
+    ready_to_post = [scrutin for scrutin in client.get_data(
+        "scrutins") if not scrutin.posted]
 
     scrutin_to_post = ready_to_post.pop()
 
     scrutin_analyse = await get_scrutin_details(scrutin_to_post)
 
     tweet_image = generate_vote_image(scrutin_to_post, scrutin_analyse)
-    img = client.tw_api_V1.media_upload(filename=tweet_image.name, file=tweet_image)
+    img = client.tw_api_V1.media_upload(
+        filename=tweet_image.name, file=tweet_image)
     scrutin_to_post.media_id = img.media_id
 
     txt = short_tweet(scrutin_to_post)
@@ -85,7 +89,8 @@ async def create_post(client: client.Client) -> None:
 
     assert len(txt) <= 280, f"Tweet too long for scrutin {scrutin_to_post.id}"
 
-    client.tw_client.create_tweet(media_ids=[scrutin_to_post.media_id] if scrutin_to_post.media_id else None)
+    client.tw_client.create_tweet(
+        media_ids=[scrutin_to_post.media_id] if scrutin_to_post.media_id else None)
 
     scrutin_to_post.posted = True
     client.get_data("posted_scrutins").append(scrutin_to_post.id)
@@ -178,25 +183,31 @@ def generate_vote_image(scrutin: Scrutin, scrutin_analyse: ScrutinAnalyse) -> By
     boxed_text(
         draw,
         reading,
-        (500, 850),
-        FONT_TITLE,
+        (700, 590),
+        FONT_TEXT,
         "#fcfcfc",
         "#2c2d32",
     )
 
-    boxed_text(draw, "Détails du scrutin :", (10, 260), FONT_TITLE, "#fcfcfc", "#2c2d32")
+    boxed_text(draw, "Détails du scrutin :", (10, 260),
+               FONT_TITLE, "#fcfcfc", "#2c2d32")
 
     if scrutin.adopted:
-        boxed_text(draw, f"{scrutin.vote_for}", (30, 335), FONT_NUMBERS, "#fcfcfc", "#5890bd")
+        boxed_text(draw, f"{scrutin.vote_for}", (30, 335),
+                   FONT_NUMBERS, "#fcfcfc", "#5890bd")
     else:
-        draw.text((30, 335), f"{scrutin.vote_for}", font=FONT_NUMBERS, fill="#5890bd")
+        draw.text((30, 335), f"{scrutin.vote_for}",
+                  font=FONT_NUMBERS, fill="#5890bd")
 
     if not scrutin.adopted:
-        boxed_text(draw, f"{scrutin.vote_against}", (200, 335), FONT_NUMBERS, "#fcfcfc", "#ea707d")
+        boxed_text(draw, f"{scrutin.vote_against}",
+                   (200, 335), FONT_NUMBERS, "#fcfcfc", "#ea707d")
     else:
-        draw.text((200, 335), f"{scrutin.vote_against}", font=FONT_NUMBERS, fill="#ea707d")
+        draw.text((200, 335), f"{scrutin.vote_against}",
+                  font=FONT_NUMBERS, fill="#ea707d")
 
-    draw.text((390, 335), f"{scrutin.vote_abstention}", font=FONT_NUMBERS, fill="#696969")
+    draw.text((390, 335), f"{scrutin.vote_abstention}",
+              font=FONT_NUMBERS, fill="#696969")
 
     draw.line([(10, 410), (450, 410)], fill="#2c2d32", width=3)
 
@@ -215,9 +226,9 @@ def generate_vote_image(scrutin: Scrutin, scrutin_analyse: ScrutinAnalyse) -> By
 
 
 def extract_parenthesis(text: str) -> str:
-    rmatch = re.search(CLEAN_PARENTHESIS, text)
+    rmatch = list(re.finditer(CLEAN_PARENTHESIS, text))
     if rmatch:
-        return rmatch.group(0).strip()
+        return rmatch[-1].group().strip().replace("(", "").replace(")", "")
     return ""
 
 
@@ -267,5 +278,6 @@ def boxed_text(
 
     x, y = pos
 
-    draw.rectangle([x - padding, y, x + text_width + padding, y + text_height + (padding * 2)], fill=bg_color)
+    draw.rectangle([x - padding, y, x + text_width + padding,
+                   y + text_height + (padding * 2)], fill=bg_color)
     draw.text(pos, text, font=font, fill=font_color)
