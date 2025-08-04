@@ -16,8 +16,12 @@ from src.models import Scrutin, ScrutinAnalyse
 CLEAN_TITLE_PATTERN = re.compile(
     r"Scrutin public n.?°\d+\s+sur\s+(l[’']|le|la)\s*", re.IGNORECASE)
 
-FONT_TITLE = ImageFont.truetype("assets/JunePro-Medium.ttf", 32)
-FONT_TEXT = ImageFont.truetype("assets/JunePro-Regular.ttf", 22)
+CLEAN_PARENTHESIS = re.compile(r"\s*\([^)]*\)", re.IGNORECASE)
+
+FONT_TITLE = ImageFont.truetype("assets/JunePro-Medium.ttf", 52)
+FONT_TEXT = ImageFont.truetype("assets/JunePro-Regular.ttf", 47)
+FONT_TEXT_SMALLER = ImageFont.truetype("assets/JunePro-Regular.ttf", 32)
+FONT_NUMBERS = ImageFont.truetype("assets/JunePro-Extrabold.ttf", 55)
 
 
 BASE_URL: str = "https://dysta.github.io/ANDataParser/data"
@@ -45,9 +49,8 @@ async def get_scrutins_task(client: client.Client) -> None:
     if not scrutins:
         logger.debug("No scrutins to post today, taking the last 50 scrutins")
 
-        scrutins = [
-            Scrutin(**scrut) for scrut in scrutins_json["scrutins"][:50]
-        ]
+        scrutins = [Scrutin(**scrut)
+                    for scrut in scrutins_json["scrutins"][:50]]
 
     linked_media = client.get_data("linked_media")
     posted_scrutins = client.get_data("posted_scrutins")
@@ -63,7 +66,7 @@ async def get_scrutins_task(client: client.Client) -> None:
     client.dispatch("scrutins_updated")
 
 
-@task.loop(seconds=3)
+@task.loop(seconds=3, count=5)
 async def create_post(client: client.Client) -> None:
     logger.debug("Running post scrutins loop")
 
@@ -87,9 +90,7 @@ async def create_post(client: client.Client) -> None:
     assert len(txt) <= 280, f"Tweet too long for scrutin {scrutin_to_post.id}"
 
     client.tw_client.create_tweet(
-        media_ids=[
-            scrutin_to_post.media_id] if scrutin_to_post.media_id else None
-    )
+        media_ids=[scrutin_to_post.media_id] if scrutin_to_post.media_id else None)
 
     scrutin_to_post.posted = True
     client.get_data("posted_scrutins").append(scrutin_to_post.id)
@@ -136,43 +137,29 @@ def generate_vote_image(scrutin: Scrutin, scrutin_analyse: ScrutinAnalyse) -> By
     width, height = bg.size
     draw = ImageDraw.Draw(bg)
 
-    cleaned_name = re.sub(CLEAN_TITLE_PATTERN, "", scrutin.name).strip()
-    cleaned_name = cleaned_name[:1].upper() + cleaned_name[1:]
-
-    splited_name = wrap(cleaned_name, width=50)
+    cleaned_name = clean_scrutin_name(scrutin.name)
+    splited_name = wrap(cleaned_name, width=30)
     for i, line in enumerate(splited_name):
-        draw.text((410, 20 + i * 38), line,
-                  font=FONT_TITLE, fill="#233f6b")
-
-    bbox = draw.textbbox((0, 0), str(scrutin.id), font=FONT_TEXT)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-
-    padding = 10
-    draw.rectangle(
-        [0, 15, 10 + text_width +
-            padding, 15 + text_height + padding],
-        fill="#233f6b"
-    )
-
-    draw.text((10, 15), str(scrutin.id),
-              font=FONT_TEXT, fill="#fcfcfc")
+        draw.text((410, 15 + i * 42), line, font=FONT_TITLE, fill="#233f6b")
 
     date = datetime.strptime(scrutin.date, "%Y-%m-%d")
-
-    bbox = draw.textbbox((0, 0), f"{date:%d/%m/%Y}", font=FONT_TEXT)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-
-    padding = 10
-    draw.rectangle(
-        [0, 60, 10 + text_width +
-            padding, 60 + text_height + padding],
-        fill="#233f6b"
+    boxed_text(
+        draw,
+        f"{date:%d/%m/%Y}",
+        (10, 15),
+        FONT_TEXT,
+        "#fcfcfc",
+        "#233f6b",
     )
 
-    draw.text((10, 60), f"{date:%d/%m/%Y}",
-              font=FONT_TEXT, fill="#fcfcfc")
+    boxed_text(
+        draw,
+        f"{scrutin.id}",
+        (10, 140),
+        FONT_TEXT_SMALLER,
+        "#fcfcfc",
+        "#233f6b",
+    )
 
     if scrutin_analyse.visualizer:
         vizualizer = BytesIO(base64.b64decode(scrutin_analyse.visualizer))
@@ -189,37 +176,113 @@ def generate_vote_image(scrutin: Scrutin, scrutin_analyse: ScrutinAnalyse) -> By
 
         hemi_img.putdata(new_data)
         hemi_img = hemi_img.resize((650, 400))
-        bg.paste(hemi_img, (width - 700, height - 430))
 
-    draw.text((30, 240), "Détails du scrutin :",
-              font=FONT_TITLE, fill="#2c2d32")
+        bg.paste(hemi_img, (width - 675, height - 400))
 
-    draw.text(
-        (30, 300), f"Pour l'adoption : {scrutin.vote_for}", font=FONT_TEXT, fill="#4CAF50")
-    draw.text(
-        (30, 330), f"Contre l'adoption : {scrutin.vote_against}", font=FONT_TEXT, fill="#C52D22")
-    draw.text(
-        (30, 360), f"Abstentions : {scrutin.vote_abstention}", font=FONT_TEXT, fill="#555555")
+    reading = extract_parenthesis(scrutin.name)
+    boxed_text(
+        draw,
+        reading,
+        (700, 590),
+        FONT_TEXT,
+        "#fcfcfc",
+        "#2c2d32",
+    )
 
-    draw.text(
-        (30, 420), f"Votants : {scrutin.vote_abstention + scrutin.vote_against + scrutin.vote_for}", font=FONT_TEXT, fill="#2c2d32")
-
-    draw.text(
-        (30, 450), f"Suffrages exprimés : { scrutin.vote_against + scrutin.vote_for}", font=FONT_TEXT, fill="#2c2d32")
-
-    draw.text(
-        (30, 480), f"Majorité absolue : { (scrutin.vote_abstention + scrutin.vote_against + scrutin.vote_for) // 2}", font=FONT_TEXT, fill="#2c2d32")
+    boxed_text(draw, "Détails du scrutin :", (10, 260),
+               FONT_TITLE, "#fcfcfc", "#2c2d32")
 
     if scrutin.adopted:
-        stamp = Image.open("assets/valid.jpg").convert("RGB")
+        boxed_text(draw, f"{scrutin.vote_for}", (30, 335),
+                   FONT_NUMBERS, "#fcfcfc", "#5890bd")
     else:
-        stamp = Image.open("assets/denied.jpg").convert("RGB")
+        draw.text((30, 335), f"{scrutin.vote_for}",
+                  font=FONT_NUMBERS, fill="#5890bd")
 
-    stamp = stamp.resize((90, 90))
-    bg.paste(stamp, (350, 530))
+    if not scrutin.adopted:
+        boxed_text(draw, f"{scrutin.vote_against}",
+                   (200, 335), FONT_NUMBERS, "#fcfcfc", "#ea707d")
+    else:
+        draw.text((200, 335), f"{scrutin.vote_against}",
+                  font=FONT_NUMBERS, fill="#ea707d")
+
+    draw.text((390, 335), f"{scrutin.vote_abstention}",
+              font=FONT_NUMBERS, fill="#696969")
+
+    draw.line([(10, 410), (450, 410)], fill="#2c2d32", width=3)
+
+    draw.text(
+        (200, 420),
+        f"{scrutin.vote_abstention + scrutin.vote_against + scrutin.vote_for}",
+        font=FONT_NUMBERS,
+        fill="#2c2d32",
+    )
 
     buffer = BytesIO()
     buffer.name = f"scrutin_{scrutin.id}.jpg"
     bg.save(buffer, format="JPEG")
     buffer.seek(0)
     return buffer
+
+
+def extract_parenthesis(text: str) -> str:
+    """Extract the last parenthesis content from the text.
+
+    :param text: The text to extract from.
+    :return: The content inside the last parenthesis, cleaned of parentheses.
+    """
+    rmatch = list(re.finditer(CLEAN_PARENTHESIS, text))
+    if rmatch:
+        return rmatch[-1].group().strip().replace("(", "").replace(")", "")
+    return ""
+
+
+def clean_scrutin_name(name: str) -> str:
+    """
+    Clean the scrutin name by removing the "Scrutin public n°" part and any leading/trailing whitespace.
+
+    :param name: The original scrutin name.
+    :return: The cleaned scrutin name.
+    """
+    cleaned_name = CLEAN_PARENTHESIS.sub("", name).strip()
+    cleaned_name = re.sub(CLEAN_TITLE_PATTERN, "", cleaned_name).strip()
+
+    match = re.search(r"\b(\w+)\s+de loi\b", cleaned_name, re.IGNORECASE)
+    if not match:
+        return cleaned_name[:1].upper() + cleaned_name[1:]
+
+    start = match.start(1)
+
+    cleaned_name = cleaned_name[start:]
+    cleaned_name = cleaned_name[:1].upper() + cleaned_name[1:]
+
+    return cleaned_name
+
+
+def boxed_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    pos: tuple[int, int],
+    font: ImageFont.FreeTypeFont,
+    font_color: str,
+    bg_color: str,
+    padding: int = 10,
+) -> None:
+    """
+    Draw a text with a background box.
+
+    :param text: The text to draw.
+    :param pos: The position to draw the text at.
+    :param font: The font to use for the text.
+    :param draw: The ImageDraw object to use for drawing.
+    :param padding: The padding around the text.
+    """
+    bbox = draw.textbbox(pos, text, font=font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+
+    x, y = pos
+
+    draw.rectangle([x - padding, y, x + text_width + padding,
+                   y + text_height + (padding * 2)], fill=bg_color)
+    draw.text(pos, text, font=font, fill=font_color)
