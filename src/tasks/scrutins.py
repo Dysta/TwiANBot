@@ -226,6 +226,11 @@ def generate_vote_image(scrutin: Scrutin, scrutin_analyse: ScrutinAnalyse) -> By
 
 
 def extract_parenthesis(text: str) -> str:
+    """Extract the last parenthesis content from the text.
+
+    :param text: The text to extract from.
+    :return: The content inside the last parenthesis, cleaned of parentheses.
+    """
     rmatch = list(re.finditer(CLEAN_PARENTHESIS, text))
     if rmatch:
         return rmatch[-1].group().strip().replace("(", "").replace(")", "")
